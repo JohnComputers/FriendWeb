@@ -24,6 +24,7 @@ import type {
 import { displayName } from "../types";
 import { Modal } from "./Modal";
 import "./editors.css";
+import "./person-inputs.css";
 
 const now = () => new Date().toISOString();
 const commaList = (value: string) => [
@@ -82,6 +83,120 @@ function Section({
       </summary>
       <div className="editor-section-content">{children}</div>
     </details>
+  );
+}
+function PersonMultiChoice({
+  label,
+  singular,
+  values,
+  suggestions,
+  custom,
+  onCustomChange,
+  onChange,
+}: {
+  label: string;
+  singular: string;
+  values: string[];
+  suggestions: string[];
+  custom: string;
+  onCustomChange: (value: string) => void;
+  onChange: (values: string[]) => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const options = [...new Set(suggestions)]
+    .filter((value) => !values.includes(value))
+    .sort((a, b) => a.localeCompare(b));
+  const addCustom = () => {
+    const value = custom.trim();
+    if (!value) return;
+    onChange([...new Set([...values, value])]);
+    onCustomChange("");
+    setAdding(false);
+  };
+  return (
+    <div className="person-multi-choice">
+      <label className="field">
+        <span>{label}</span>
+        <select
+          aria-label={`Choose ${singular}`}
+          className="input"
+          value=""
+          onChange={(event) => {
+            const value = event.target.value;
+            if (value === "__friendweb_custom__") setAdding(true);
+            else if (value) onChange([...values, value]);
+          }}
+        >
+          <option value="">Choose {singular.toLowerCase()}…</option>
+          {options.map((value) => (
+            <option key={value} value={value}>
+              {value}
+            </option>
+          ))}
+          <option value="__friendweb_custom__">
+            + Add a custom {singular.toLowerCase()}…
+          </option>
+        </select>
+      </label>
+      {values.length > 0 && (
+        <div
+          className="person-choice-chips"
+          aria-label={`Selected ${label.toLowerCase()}`}
+        >
+          {values.map((value) => (
+            <span className="person-choice-chip" key={value}>
+              {value}
+              <button
+                type="button"
+                aria-label={`Remove ${value} from ${label.toLowerCase()}`}
+                onClick={() =>
+                  onChange(values.filter((item) => item !== value))
+                }
+              >
+                <X size={13} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      {adding && (
+        <div className="person-choice-add">
+          <input
+            className="input"
+            aria-label={`New ${singular.toLowerCase()}`}
+            maxLength={120}
+            value={custom}
+            placeholder={`Type a custom ${singular.toLowerCase()}`}
+            onChange={(event) => onCustomChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                addCustom();
+              }
+            }}
+          />
+          <button
+            type="button"
+            className="button secondary"
+            disabled={!custom.trim()}
+            onClick={addCustom}
+          >
+            Add
+          </button>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={`Cancel adding ${singular.toLowerCase()}`}
+            onClick={() => {
+              onCustomChange("");
+              setAdding(false);
+            }}
+          >
+            <X size={15} />
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 function KeyValues({
@@ -222,13 +337,17 @@ export function PersonEditor({
   const [draft, setDraft] = useState<Person>(() =>
     person ? structuredClone(person) : newPerson(),
   );
-  const [tags, setTags] = useState(draft.tags.join(", "));
-  const [groups, setGroups] = useState(draft.groups.join(", "));
+  const [tags, setTags] = useState<string[]>(draft.tags);
+  const [groups, setGroups] = useState<string[]>(draft.groups);
+  const [newTag, setNewTag] = useState("");
+  const [newGroup, setNewGroup] = useState("");
   const [error, setError] = useState("");
   const [photoBusy, setPhotoBusy] = useState(false);
   const [duplicateConfirmed, setDuplicateConfirmed] = useState(false);
   const photoInput = useRef<HTMLInputElement>(null);
   const formId = useId();
+  const pronounsListId = useId();
+  const genderListId = useId();
   const patch = (value: Partial<Person>) =>
     setDraft((d) => ({ ...d, ...value }));
   const duplicates = Object.values(web.people).filter(
@@ -253,8 +372,8 @@ export function PersonEditor({
       ...draft,
       firstName: draft.firstName.trim(),
       lastName: draft.lastName?.trim(),
-      tags: commaList(tags),
-      groups: commaList(groups),
+      tags: [...new Set([...tags, newTag.trim()].filter(Boolean))],
+      groups: [...new Set([...groups, newGroup.trim()].filter(Boolean))],
       updatedAt: now(),
     });
     onClose();
@@ -402,30 +521,38 @@ export function PersonEditor({
           />
         </Field>
         <div className="field-grid">
-          <Field label="Groups" hint="Separate groups with commas">
-            <input
-              className="input"
-              value={groups}
-              list="person-group-options"
-              placeholder="Friends, Work, Family"
-              onChange={(e) => setGroups(e.target.value)}
-            />
-            <datalist id="person-group-options">
-              {[
-                ...new Set(Object.values(web.people).flatMap((p) => p.groups)),
-              ].map((g) => (
-                <option key={g} value={g} />
-              ))}
-            </datalist>
-          </Field>
-          <Field label="Tags" hint="Separate tags with commas">
-            <input
-              className="input"
-              value={tags}
-              placeholder="coffee, hiking, creative"
-              onChange={(e) => setTags(e.target.value)}
-            />
-          </Field>
+          <PersonMultiChoice
+            label="Groups"
+            singular="Group"
+            values={groups}
+            onChange={setGroups}
+            custom={newGroup}
+            onCustomChange={setNewGroup}
+            suggestions={[
+              "Friends",
+              "Family",
+              "Work",
+              "School",
+              "Community",
+              ...Object.values(web.people).flatMap((p) => p.groups),
+            ]}
+          />
+          <PersonMultiChoice
+            label="Tags"
+            singular="Tag"
+            values={tags}
+            onChange={setTags}
+            custom={newTag}
+            onCustomChange={setNewTag}
+            suggestions={[
+              "Coffee",
+              "Creative",
+              "Hiking",
+              "Music",
+              "Travel",
+              ...Object.values(web.people).flatMap((p) => p.tags),
+            ]}
+          />
         </div>
         <Section title="Personal details">
           <div className="field-grid">
@@ -442,17 +569,54 @@ export function PersonEditor({
                 className="input"
                 maxLength={120}
                 value={draft.pronouns || ""}
-                placeholder="e.g. they / them"
+                list={pronounsListId}
+                placeholder="Choose or type their pronouns"
                 onChange={(e) => patch({ pronouns: e.target.value })}
               />
+              <datalist id={pronounsListId}>
+                {[
+                  ...new Set([
+                    "she/her",
+                    "he/him",
+                    "they/them",
+                    "she/they",
+                    "he/they",
+                    "any pronouns",
+                    ...Object.values(web.people)
+                      .map((p) => p.pronouns)
+                      .filter((value): value is string => !!value),
+                  ]),
+                ].map((value) => (
+                  <option key={value} value={value} />
+                ))}
+              </datalist>
             </Field>
             <Field label="Gender" hint="Optional, in their own words">
               <input
                 className="input"
                 maxLength={120}
                 value={draft.gender || ""}
+                list={genderListId}
+                placeholder="Choose or type their gender"
                 onChange={(e) => patch({ gender: e.target.value })}
               />
+              <datalist id={genderListId}>
+                {[
+                  ...new Set([
+                    "Woman",
+                    "Man",
+                    "Nonbinary",
+                    "Agender",
+                    "Genderfluid",
+                    "Prefer not to say",
+                    ...Object.values(web.people)
+                      .map((p) => p.gender)
+                      .filter((value): value is string => !!value),
+                  ]),
+                ].map((value) => (
+                  <option key={value} value={value} />
+                ))}
+              </datalist>
             </Field>
             <Field label="Birthday">
               <input
@@ -657,6 +821,7 @@ export function ConnectionEditor({
   );
   const [query, setQuery] = useState("");
   const [sourceQuery, setSourceQuery] = useState("");
+  const [batchMode, setBatchMode] = useState(false);
   const [extraPeople, setExtraPeople] = useState<Person[]>([]);
   const [type, setType] = useState(
     connection?.type || web.types[0]?.id || "other",
@@ -715,6 +880,14 @@ export function ConnectionEditor({
       .toLowerCase()
       .includes(sourceQuery.toLowerCase()),
   );
+  const relationship = web.types.find((t) => t.id === type);
+  const previewColor = hex(color, relationship?.color);
+  const previewStyle = style || relationship?.style || "solid";
+  const sourceName = people.find((p) => p.id === source)?.firstName || "Person";
+  const targetName =
+    targets.length > 1
+      ? `${targets.length} people`
+      : people.find((p) => p.id === targets[0])?.firstName || "Person";
   const candidates = targets
     .filter((id) => id !== source)
     .map((target) => ({
@@ -724,9 +897,15 @@ export function ConnectionEditor({
       type: overrides[target]?.type || type,
       notes: overrides[target]?.notes ?? notes,
       directed,
-      color: overrides[target]?.color || color || undefined,
+      color:
+        overrides[target]?.color ||
+        (overrides[target]?.type ? undefined : color) ||
+        undefined,
       weight: overrides[target]?.weight ?? weight,
-      style: overrides[target]?.style || style || undefined,
+      style:
+        overrides[target]?.style ||
+        (overrides[target]?.type ? undefined : style) ||
+        undefined,
       opacity,
       particles,
       hidden,
@@ -770,7 +949,7 @@ export function ConnectionEditor({
     };
     setExtraPeople((prev) => [...prev, person]);
     onCreatePerson(person);
-    setTargets((prev) => [...prev, person.id]);
+    setTargets((prev) => (batchMode ? [...prev, person.id] : [person.id]));
     setCreatingName("");
     setCreatingDuplicateConfirmed(false);
     setQuery("");
@@ -865,7 +1044,8 @@ export function ConnectionEditor({
               <option key={p.id} value={p.id}>
                 {displayName(p)}
                 {p.nickname ? ` (${p.nickname})` : ""}
-                {p.groups.length ? ` · ${p.groups.join(", ")}` : ""}
+                {p.groups.length ? ` · ${p.groups.join(", ")}` : ""} ·{" "}
+                {p.id.slice(0, 4)}
               </option>
             ))}
           </select>
@@ -879,7 +1059,9 @@ export function ConnectionEditor({
             <p className="muted">
               {connection
                 ? "Select a target person"
-                : "Select as many as you like"}
+                : batchMode
+                  ? "Select everyone to connect"
+                  : "Select one person, or switch to select several"}
             </p>
           </div>
         </div>
@@ -895,7 +1077,7 @@ export function ConnectionEditor({
                 placeholder="Search names, nicknames, groups…"
               />
             </div>
-            {!connection && (
+            {!connection && batchMode && (
               <button
                 className="text-button"
                 type="button"
@@ -918,56 +1100,106 @@ export function ConnectionEditor({
               </button>
             )}
           </div>
-          <div
-            className="target-people"
-            role="group"
-            aria-label="Target people"
-          >
-            {available.map((p) => (
-              <label
-                key={p.id}
-                className={`target-person ${targets.includes(p.id) ? "is-checked" : ""}`}
+          {!connection && (
+            <button
+              type="button"
+              className="button secondary small batch-mode-toggle"
+              onClick={() => {
+                if (batchMode && targets.length > 1) {
+                  setError(
+                    "Remove extra selections before returning to a single person.",
+                  );
+                  return;
+                }
+                setBatchMode(!batchMode);
+                setError("");
+              }}
+            >
+              <Users size={14} />
+              {batchMode ? "Choose one person" : "Select several people"}
+            </button>
+          )}
+          {!batchMode ? (
+            <label className="field">
+              <span>Other person</span>
+              <select
+                className="input"
+                aria-label="Target person"
+                value={targets[0] || ""}
+                onChange={(e) => {
+                  setTargets(e.target.value ? [e.target.value] : []);
+                  setDuplicatesConfirmed(false);
+                }}
               >
-                <input
-                  type={connection ? "radio" : "checkbox"}
-                  name="connection-target"
-                  checked={targets.includes(p.id)}
-                  onChange={() =>
-                    connection ? setTargets([p.id]) : toggleTarget(p.id)
-                  }
-                />
-                <span
-                  className="mini-person"
-                  style={{
-                    background: `${hex(p.color)}25`,
-                    color: hex(p.color),
-                  }}
+                <option value="">Choose a person</option>
+                {(targets[0] && !available.some((p) => p.id === targets[0])
+                  ? [
+                      people.find((p) => p.id === targets[0]),
+                      ...available,
+                    ].filter((p): p is Person => Boolean(p) && p!.id !== source)
+                  : available
+                ).map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {displayName(p)}
+                    {p.nickname ? ` (${p.nickname})` : ""}
+                    {p.groups.length ? ` · ${p.groups.join(", ")}` : ""} ·{" "}
+                    {p.id.slice(0, 4)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <div
+              className="target-people"
+              role="group"
+              aria-label="Target people"
+            >
+              {available.map((p) => (
+                <label
+                  key={p.id}
+                  className={`target-person ${targets.includes(p.id) ? "is-checked" : ""}`}
                 >
-                  {p.photo ? (
-                    <img src={p.photo} alt="" />
-                  ) : (
-                    p.firstName.slice(0, 1).toUpperCase()
-                  )}
-                </span>
-                <span>
-                  <strong>{displayName(p)}</strong>
-                  <small className="muted">
-                    {[p.nickname, p.groups.join(" · ")]
-                      .filter(Boolean)
-                      .join(" · ") || `ID ${p.id.slice(0, 8)}`}
-                  </small>
-                </span>
-                <span className="target-person-check">
-                  {targets.includes(p.id) && <Check size={15} />}
-                </span>
-              </label>
-            ))}
-            {!available.length && (
-              <p className="target-empty muted">
-                No people match. Create someone below.
-              </p>
-            )}
-          </div>
+                  <input
+                    type={connection ? "radio" : "checkbox"}
+                    name="connection-target"
+                    checked={targets.includes(p.id)}
+                    onChange={() =>
+                      connection ? setTargets([p.id]) : toggleTarget(p.id)
+                    }
+                  />
+                  <span
+                    className="mini-person"
+                    style={{
+                      background: `${hex(p.color)}25`,
+                      color: hex(p.color),
+                    }}
+                  >
+                    {p.photo ? (
+                      <img src={p.photo} alt="" />
+                    ) : (
+                      p.firstName.slice(0, 1).toUpperCase()
+                    )}
+                  </span>
+                  <span>
+                    <strong>{displayName(p)}</strong>
+                    <small className="muted">
+                      {[p.nickname, p.groups.join(" · ")]
+                        .filter(Boolean)
+                        .join(" · ") || `ID ${p.id.slice(0, 8)}`}
+                    </small>
+                  </span>
+                  <span className="target-person-check">
+                    {targets.includes(p.id) && <Check size={15} />}
+                  </span>
+                </label>
+              ))}
+              {!available.length && (
+                <p className="target-empty muted">
+                  No people match. Create someone below.
+                </p>
+              )}
+            </div>
+          )}
           {!connection && (
             <div className="create-missing">
               <UserPlus size={16} />
@@ -1050,6 +1282,8 @@ export function ConnectionEditor({
               value={type}
               onChange={(e) => {
                 setType(e.target.value);
+                setColor("");
+                setStyle("");
                 setDuplicatesConfirmed(false);
               }}
             >
@@ -1073,6 +1307,115 @@ export function ConnectionEditor({
               <option value="directed">Directed · source → target</option>
             </select>
           </Field>
+        </div>
+        <div className="relationship-style-panel">
+          <div className="relationship-style-heading">
+            <div>
+              <strong>Make the relationship visible</strong>
+              <p className="muted">
+                Each type has a color. Choose a different color or line whenever
+                you like.
+              </p>
+            </div>
+          </div>
+          <div
+            className="relationship-preview"
+            aria-label={`Preview: ${sourceName} connected to ${targetName}, ${relationship?.name || "relationship"}, ${previewStyle} line`}
+          >
+            <span>{sourceName}</span>
+            <span
+              className="relationship-preview-line"
+              style={{
+                borderTopColor: previewColor,
+                borderTopStyle: previewStyle,
+              }}
+            >
+              {directed && <i style={{ borderLeftColor: previewColor }} />}
+            </span>
+            <span>{targetName}</span>
+          </div>
+          <div className="field-grid">
+            <Field label="Line color">
+              <div className="relationship-color-row">
+                <select
+                  className="input"
+                  aria-label="Line color"
+                  value={color}
+                  onChange={(e) => setColor(e.target.value)}
+                >
+                  <option value="">
+                    {relationship?.name || "Relationship"} color (default)
+                  </option>
+                  {[
+                    ["#a78bfa", "Purple"],
+                    ["#f9a8d4", "Pink"],
+                    ["#fb7185", "Rose"],
+                    ["#fbbf77", "Orange"],
+                    ["#fcd34d", "Yellow"],
+                    ["#64cbb3", "Teal"],
+                    ["#7db6f7", "Blue"],
+                    ["#94a3b8", "Gray"],
+                  ].map(([value, name]) => (
+                    <option key={value} value={value}>
+                      {name}
+                    </option>
+                  ))}
+                  {color &&
+                    ![
+                      "#a78bfa",
+                      "#f9a8d4",
+                      "#fb7185",
+                      "#fbbf77",
+                      "#fcd34d",
+                      "#64cbb3",
+                      "#7db6f7",
+                      "#94a3b8",
+                    ].includes(color.toLowerCase()) && (
+                      <option value={color}>Custom color</option>
+                    )}
+                </select>
+                <input
+                  type="color"
+                  aria-label="Choose a custom line color"
+                  value={previewColor}
+                  onChange={(e) => setColor(e.target.value)}
+                />
+              </div>
+            </Field>
+            <Field label="Line appearance">
+              <select
+                className="input"
+                aria-label="Line appearance"
+                value={style}
+                onChange={(e) => setStyle(e.target.value as LineStyle | "")}
+              >
+                <option value="">Use relationship default</option>
+                <option value="solid">Solid</option>
+                <option value="dashed">Dashed</option>
+                <option value="dotted">Dotted</option>
+              </select>
+            </Field>
+            <Field label="Line thickness">
+              <select
+                className="input"
+                aria-label="Line thickness"
+                value={weight}
+                onChange={(e) => setWeight(Number(e.target.value))}
+              >
+                <option value={0.5}>Fine</option>
+                <option value={1}>Regular</option>
+                <option value={1.5}>Medium</option>
+                <option value={2}>Bold</option>
+                <option value={3}>Extra bold</option>
+                {![0.5, 1, 1.5, 2, 3].includes(weight) && (
+                  <option value={weight}>Custom ({weight})</option>
+                )}
+              </select>
+            </Field>
+          </div>
+          <small className="muted">
+            Changing the relationship type restores its default color and line.
+          </small>
         </div>
         <Field
           label="Comment"
@@ -1151,8 +1494,7 @@ export function ConnectionEditor({
                             [id]: {
                               ...prev[id],
                               style: (e.target.value || undefined) as
-                                | LineStyle
-                                | undefined,
+                                LineStyle | undefined,
                             },
                           }))
                         }
@@ -1244,65 +1586,28 @@ export function ConnectionEditor({
           </div>
           <KeyValues value={custom} onChange={setCustom} />
         </Section>
-        <Section title="Line style & visibility">
+        <Section title="More line options">
           <div className="field-grid">
-            <Field label="Color">
-              <div className="editor-color-field">
-                <input
-                  type="color"
-                  value={hex(
-                    color,
-                    web.types.find((t) => t.id === type)?.color,
-                  )}
-                  onChange={(e) => setColor(e.target.value)}
-                />
-                <button
-                  type="button"
-                  className="button secondary small"
-                  onClick={() => setColor("")}
-                >
-                  Use type color
-                </button>
-              </div>
-            </Field>
-            <Field label="Line style">
+            <Field label="Opacity">
               <select
                 className="input"
-                value={style}
-                onChange={(e) => setStyle(e.target.value as LineStyle | "")}
-              >
-                <option value="">Use type default</option>
-                <option value="solid">Solid</option>
-                <option value="dashed">Dashed</option>
-                <option value="dotted">Dotted</option>
-              </select>
-            </Field>
-            <Field label="Weight / thickness">
-              <input
-                className="input"
-                type="number"
-                min={0.2}
-                max={10}
-                step={0.1}
-                value={weight}
-                onChange={(e) => setWeight(Number(e.target.value))}
-              />
-            </Field>
-            <Field label="Opacity">
-              <input
-                className="input"
-                type="number"
-                min={0.05}
-                max={1}
-                step={0.05}
                 value={opacity ?? ""}
-                placeholder="Use web default"
                 onChange={(e) =>
                   setOpacity(
                     e.target.value ? Number(e.target.value) : undefined,
                   )
                 }
-              />
+              >
+                <option value="">Use web default</option>
+                <option value="0.25">Subtle</option>
+                <option value="0.5">Soft</option>
+                <option value="0.75">Visible</option>
+                <option value="1">Full</option>
+                {opacity !== undefined &&
+                  ![0.25, 0.5, 0.75, 1].includes(opacity) && (
+                    <option value={opacity}>Custom ({opacity})</option>
+                  )}
+              </select>
             </Field>
           </div>
           <div className="editor-checks">

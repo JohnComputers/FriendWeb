@@ -707,6 +707,17 @@ function FriendWeb() {
             <Activity size={18} />
             <span>Web insights</span>
           </button>
+          {!readonly && (
+            <button
+              onClick={() => {
+                setDialog("types");
+                setLeftOpen(false);
+              }}
+            >
+              <Palette size={18} />
+              <span>Relationship styles</span>
+            </button>
+          )}
         </nav>
         <div className="sidebar-divider" />
         <div className="sidebar-label">
@@ -794,11 +805,25 @@ function FriendWeb() {
             </label>
             <label className="field">
               Gender
-              <input
+              <select
                 value={state.filters.gender}
                 onChange={(e) => state.setFilters({ gender: e.target.value })}
-                placeholder="Any gender"
-              />
+              >
+                <option value="">All genders</option>
+                {[
+                  ...new Set(
+                    allPeople
+                      .map((p) => p.gender)
+                      .filter((value): value is string => Boolean(value)),
+                  ),
+                ]
+                  .sort((a, b) => a.localeCompare(b))
+                  .map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+              </select>
             </label>
             <div className="field-grid">
               <label className="field">
@@ -1512,10 +1537,11 @@ function FriendWeb() {
                 </button>
                 <button
                   className="button toolbar-connect"
+                  aria-label="Add connection"
                   onClick={() => newConnection(selected?.id)}
                 >
                   <Link2 size={16} />
-                  <span>Connection</span>
+                  <span>Connect</span>
                 </button>
                 <span className="toolbar-divider" />
                 <IconButton
@@ -2127,6 +2153,8 @@ function FriendWeb() {
                   onChange={(e) =>
                     state.mutate("Change connection type", (w) => {
                       w.links[selectedLink.id].type = e.target.value;
+                      w.links[selectedLink.id].color = undefined;
+                      w.links[selectedLink.id].style = undefined;
                     })
                   }
                 >
@@ -2136,6 +2164,151 @@ function FriendWeb() {
                     </option>
                   ))}
                 </select>
+                <p className="muted small">
+                  Changing the relationship uses its default color and line
+                  style.
+                </p>
+                {!readonly && (
+                  <button
+                    className="text-button"
+                    onClick={() => setDialog("types")}
+                  >
+                    Manage relationship styles <ArrowRight size={12} />
+                  </button>
+                )}
+              </section>
+              <section className="detail-section">
+                <h3>Line appearance</h3>
+                <div
+                  className="inspector-line-preview"
+                  aria-label={`${typeOf(selectedLink)?.name || "Relationship"} line preview`}
+                >
+                  <span>{web.people[selectedLink.source]?.firstName}</span>
+                  <span
+                    style={{
+                      borderTopColor:
+                        selectedLink.color ||
+                        typeOf(selectedLink)?.color ||
+                        web.settings.accent,
+                      borderTopStyle:
+                        selectedLink.style ||
+                        typeOf(selectedLink)?.style ||
+                        "solid",
+                    }}
+                  />
+                  <span>{web.people[selectedLink.target]?.firstName}</span>
+                </div>
+                <label className="field">
+                  Color
+                  <div className="relationship-color-row">
+                    <select
+                      disabled={readonly}
+                      aria-label="Connection color"
+                      value={selectedLink.color || ""}
+                      onChange={(e) =>
+                        state.mutate("Change connection color", (w) => {
+                          w.links[selectedLink.id].color =
+                            e.target.value || undefined;
+                        })
+                      }
+                    >
+                      <option value="">Use relationship color</option>
+                      {[
+                        ["#a78bfa", "Purple"],
+                        ["#f9a8d4", "Pink"],
+                        ["#fb7185", "Rose"],
+                        ["#fbbf77", "Orange"],
+                        ["#fcd34d", "Yellow"],
+                        ["#64cbb3", "Teal"],
+                        ["#7db6f7", "Blue"],
+                        ["#94a3b8", "Gray"],
+                      ].map(([value, name]) => (
+                        <option key={value} value={value}>
+                          {name}
+                        </option>
+                      ))}
+                      {selectedLink.color &&
+                        ![
+                          "#a78bfa",
+                          "#f9a8d4",
+                          "#fb7185",
+                          "#fbbf77",
+                          "#fcd34d",
+                          "#64cbb3",
+                          "#7db6f7",
+                          "#94a3b8",
+                        ].includes(selectedLink.color.toLowerCase()) && (
+                          <option value={selectedLink.color}>
+                            Custom color
+                          </option>
+                        )}
+                    </select>
+                    <input
+                      type="color"
+                      aria-label="Choose custom connection color"
+                      disabled={readonly}
+                      value={
+                        /^#[0-9a-f]{6}$/i.test(
+                          selectedLink.color ||
+                            typeOf(selectedLink)?.color ||
+                            "",
+                        )
+                          ? selectedLink.color || typeOf(selectedLink)!.color
+                          : "#a78bfa"
+                      }
+                      onChange={(e) =>
+                        state.mutate("Change connection color", (w) => {
+                          w.links[selectedLink.id].color = e.target.value;
+                        })
+                      }
+                    />
+                  </div>
+                </label>
+                <label className="field">
+                  Line style
+                  <select
+                    disabled={readonly}
+                    aria-label="Connection line style"
+                    value={selectedLink.style || ""}
+                    onChange={(e) =>
+                      state.mutate("Change line style", (w) => {
+                        w.links[selectedLink.id].style = (e.target.value ||
+                          undefined) as typeof selectedLink.style;
+                      })
+                    }
+                  >
+                    <option value="">Use relationship style</option>
+                    <option value="solid">Solid</option>
+                    <option value="dashed">Dashed</option>
+                    <option value="dotted">Dotted</option>
+                  </select>
+                </label>
+                <label className="field">
+                  Thickness
+                  <select
+                    disabled={readonly}
+                    aria-label="Connection thickness"
+                    value={selectedLink.weight}
+                    onChange={(e) =>
+                      state.mutate("Change line thickness", (w) => {
+                        w.links[selectedLink.id].weight = Number(
+                          e.target.value,
+                        );
+                      })
+                    }
+                  >
+                    <option value={0.5}>Fine</option>
+                    <option value={1}>Regular</option>
+                    <option value={1.5}>Medium</option>
+                    <option value={2}>Bold</option>
+                    <option value={3}>Extra bold</option>
+                    {![0.5, 1, 1.5, 2, 3].includes(selectedLink.weight) && (
+                      <option value={selectedLink.weight}>
+                        Custom ({selectedLink.weight})
+                      </option>
+                    )}
+                  </select>
+                </label>
               </section>
               <section className="detail-section">
                 <div className="row between">

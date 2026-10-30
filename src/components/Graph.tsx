@@ -16,6 +16,9 @@ import * as THREE from "three";
 import SpriteText from "three-spritetext";
 import { forceCollide, forceX, forceY, forceZ } from "d3-force-3d";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { Line2 } from "three/examples/jsm/lines/Line2.js";
+import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
+import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { LocateFixed, MousePointer2, Network, Pin, X } from "lucide-react";
 import type {
   Connection,
@@ -499,12 +502,10 @@ const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
     priorTopology.current = topology;
     priorPhysics.current = physicsKey;
     const charge = fg.d3Force("charge") as
-      | { strength: (value: number) => unknown }
-      | undefined;
+      { strength: (value: number) => unknown } | undefined;
     charge?.strength(settings.charge);
     const link = fg.d3Force("link") as
-      | { distance: (value: number) => unknown }
-      | undefined;
+      { distance: (value: number) => unknown } | undefined;
     link?.distance(settings.linkDistance);
     fg.d3Force("collision", forceCollide(settings.collision).strength(0.8));
     fg.d3Force("x", forceX(0).strength(settings.gravity));
@@ -999,7 +1000,7 @@ const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
     ],
   );
 
-  const linkColor = useCallback(
+  const visibleLinkColor = useCallback(
     (link: GraphLink) => {
       const l = link.connection;
       const source =
@@ -1026,6 +1027,19 @@ const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
     [types, settings, dimmed, selection, hover],
   );
 
+  // A transparent native line keeps dashed edges clickable; the visible wide
+  // line below renders the gaps. Arrows and particles retain the real color.
+  const linkColor = useCallback(
+    (link: GraphLink) => {
+      const style =
+        link.connection.style ||
+        types.get(link.connection.type)?.style ||
+        settings.edgeStyle;
+      return style === "solid" ? visibleLinkColor(link) : "rgba(0,0,0,0)";
+    },
+    [types, settings.edgeStyle, visibleLinkColor],
+  );
+
   const linkThreeObject = useCallback(
     (link: GraphLink) => {
       void linkAppearance;
@@ -1035,21 +1049,36 @@ const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
       const l = link.connection;
       const style = l.style || types.get(l.type)?.style || settings.edgeStyle;
       if (style !== "solid") {
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute(
-          "position",
-          new THREE.Float32BufferAttribute(new Float32Array(33 * 3), 3),
-        );
-        const material = new THREE.LineDashedMaterial({
-          color: l.color || types.get(l.type)?.color || settings.accent,
-          dashSize: style === "dotted" ? 0.6 : 3,
-          gapSize: style === "dotted" ? 2 : 2.3,
-          linewidth: (l.weight || 1) * settings.edgeWidth,
+        const geometry = new LineGeometry();
+        geometry.setPositions(new Float32Array(33 * 3));
+        const source =
+          typeof link.source === "object"
+            ? link.source.id
+            : (link.source as string);
+        const target =
+          typeof link.target === "object"
+            ? link.target.id
+            : (link.target as string);
+        const selected = selection?.kind === "link" && selection.id === l.id;
+        const alpha =
+          dimmed(source) && dimmed(target)
+            ? 0.05
+            : (l.opacity ?? settings.edgeOpacity) *
+              (selected || hover?.id === l.id ? 1.8 : 1);
+        const material = new LineMaterial({
+          color: selected
+            ? "#ede4ff"
+            : l.color || types.get(l.type)?.color || settings.accent,
+          dashSize: style === "dotted" ? 0.7 : 4,
+          gapSize: style === "dotted" ? 2.5 : 3,
+          linewidth: Math.max(1, (l.weight || 1) * settings.edgeWidth),
+          dashed: true,
           transparent: true,
-          opacity: l.opacity ?? settings.edgeOpacity,
+          opacity: Math.min(1, alpha),
           depthWrite: false,
         });
-        const line = new THREE.Line(geometry, material);
+        const line = new Line2(geometry, material);
+        line.computeLineDistances();
         line.name = "dashed";
         group.add(line);
       }
@@ -1069,7 +1098,7 @@ const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
       linkObjects.current.set(link.id, group);
       return group;
     },
-    [settings, types, glow, linkAppearance],
+    [settings, types, glow, linkAppearance, selection, hover, dimmed],
   );
   const linkPositionUpdate = useCallback(
     (
@@ -1078,34 +1107,39 @@ const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
       link: GraphLink,
     ) => {
       // Extended custom content stays in world space; the native link retains arrows and hit-testing.
-      const source = vector(start),
-        target = vector(end);
-      const middle = source.clone().add(target).multiplyScalar(0.5);
-      const direction = target.clone().sub(source);
-      let perpendicular = new THREE.Vector3(0, 0, 1)
-        .cross(direction)
-        .normalize();
-      if (perpendicular.lengthSq() < 0.01)
-        perpendicular = new THREE.Vector3(0, 1, 0).cross(direction).normalize();
-      perpendicular.applyAxisAngle(
-        direction.clone().normalize(),
-        link.rotation,
-      );
-      middle.add(perpendicular.multiplyScalar(direction.length() * link.curve));
-      const curve = new THREE.QuadraticBezierCurve3(source, middle, target);
-      const dashed = object.getObjectByName("dashed") as THREE.Line | undefined;
+      // Match the force graph's own curve exactly so the visible line,
+      // invisible hit target, arrows, and particles all follow the same path.
+      const curve =
+        (link.__curve as THREE.Curve<THREE.Vector3> | null | undefined) ||
+        new THREE.LineCurve3(vector(start), vector(end));
+      const dashed = object.getObjectByName("dashed") as Line2 | undefined;
       if (dashed) {
-        const positions = dashed.geometry.getAttribute(
-          "position",
-        ) as THREE.BufferAttribute;
-        curve
-          .getPoints(32)
-          .forEach((point, index) =>
-            positions.setXYZ(index, point.x, point.y, point.z),
-          );
-        positions.needsUpdate = true;
+        const points = curve.getPoints(32);
+        const starts = dashed.geometry.getAttribute(
+          "instanceStart",
+        ) as THREE.InterleavedBufferAttribute;
+        const ends = dashed.geometry.getAttribute(
+          "instanceEnd",
+        ) as THREE.InterleavedBufferAttribute;
+        const distancesStart = dashed.geometry.getAttribute(
+          "instanceDistanceStart",
+        ) as THREE.InterleavedBufferAttribute;
+        const distancesEnd = dashed.geometry.getAttribute(
+          "instanceDistanceEnd",
+        ) as THREE.InterleavedBufferAttribute;
+        let distance = 0;
+        for (let i = 0; i < points.length - 1; i++) {
+          const a = points[i],
+            b = points[i + 1];
+          starts.setXYZ(i, a.x, a.y, a.z);
+          ends.setXYZ(i, b.x, b.y, b.z);
+          distancesStart.setX(i, distance);
+          distance += a.distanceTo(b);
+          distancesEnd.setX(i, distance);
+        }
+        starts.data.needsUpdate = true;
+        distancesStart.data.needsUpdate = true;
         dashed.geometry.computeBoundingSphere();
-        dashed.computeLineDistances();
       }
       const label = object.getObjectByName("label");
       if (label) label.position.copy(curve.getPoint(0.5));
@@ -1187,7 +1221,7 @@ const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
           link.connection.directed ? 4 : 0
         }
         linkDirectionalArrowRelPos={0.8}
-        linkDirectionalArrowColor={linkColor}
+        linkDirectionalArrowColor={visibleLinkColor}
         linkDirectionalParticles={(link) =>
           (link.connection.particles ?? settings.particles) &&
           !settings.reducedMotion &&
@@ -1198,7 +1232,7 @@ const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
         }
         linkDirectionalParticleWidth={1.2}
         linkDirectionalParticleSpeed={0.003 * settings.animation}
-        linkDirectionalParticleColor={linkColor}
+        linkDirectionalParticleColor={visibleLinkColor}
         enableNodeDrag={true}
         enableNavigationControls={true}
         enablePointerInteraction={true}

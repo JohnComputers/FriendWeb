@@ -42,6 +42,50 @@ beforeEach(() => {
   });
 });
 
+describe("relationship appearance", () => {
+  it("keeps distinct colors and styles for multiple relationships between the same two people through edits and undo", () => {
+    const a = useStore.getState().addPerson({ firstName: "Alex" });
+    const b = useStore.getState().addPerson({ firstName: "Sam" });
+    const friendship = {
+      ...link(a, b),
+      type: "friend",
+      color: "#fb7185",
+      style: "dashed" as const,
+      weight: 2,
+    };
+    const family = {
+      ...link(a, b),
+      type: "family",
+      color: "#7db6f7",
+      style: "dotted" as const,
+    };
+    useStore.getState().addConnections([friendship, family]);
+    expect(Object.keys(active().links)).toHaveLength(2);
+    useStore.getState().mutate("Change line", (w) => {
+      w.links[family.id].color = "#fbbf77";
+      w.links[family.id].style = "solid";
+    });
+    expect(active().links[friendship.id]).toMatchObject({
+      type: "friend",
+      color: "#fb7185",
+      style: "dashed",
+      weight: 2,
+    });
+    useStore.getState().undo();
+    expect(active().links[family.id]).toMatchObject({
+      type: "family",
+      color: "#7db6f7",
+      style: "dotted",
+    });
+    useStore.getState().redo();
+    expect(active().links[family.id]).toMatchObject({
+      type: "family",
+      color: "#fbbf77",
+      style: "solid",
+    });
+  });
+});
+
 describe("local graph transactions", () => {
   it("atomically undoes a batch and restores removed connections when undoing deletion", () => {
     const a = makePerson("Alex"),

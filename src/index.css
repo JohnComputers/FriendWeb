@@ -2564,6 +2564,9 @@ kbd {
     font-size: 10px;
   }
   .toolbar-group .toolbar-connect span {
+    display: inline;
+  }
+  .toolbar-group > .icon-button:nth-last-child(2) {
     display: none;
   }
   .toolbar-group .icon-button {
@@ -2881,4 +2884,28 @@ kbd {
   .snapshot-banner ~ .graph-view .demo-notice {
     display: none;
   }
+}
+.inspector-line-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 8px;
+  font-size: 10px;
+}
+.inspector-line-preview span:first-child,
+.inspector-line-preview span:last-child {
+  max-width: 65px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.inspector-line-preview span:nth-child(2) {
+  flex: 1;
+  min-width: 20px;
+  border-top-width: 3px;
+  border-top-style: solid;
 }
