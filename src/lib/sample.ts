@@ -1,0 +1,380 @@
+import type { Connection, Person, Web } from "../types";
+import { DEFAULT_SETTINGS, DEFAULT_TYPES } from "./defaults";
+
+export const makePerson = (
+  firstName: string,
+  extra: Partial<Person> = {},
+): Person => {
+  const now = new Date().toISOString();
+  return {
+    id: crypto.randomUUID(),
+    firstName: firstName.trim(),
+    tags: [],
+    groups: [],
+    custom: {},
+    dates: {},
+    metadata: {},
+    createdAt: now,
+    updatedAt: now,
+    ...extra,
+  };
+};
+
+export function makeWeb(name = "Untitled web", demo = false): Web {
+  const now = new Date().toISOString();
+  const web: Web = {
+    id: crypto.randomUUID(),
+    name: name.trim() || "Untitled web",
+    description: "",
+    people: {},
+    links: {},
+    types: structuredClone(DEFAULT_TYPES),
+    settings: structuredClone(DEFAULT_SETTINGS),
+    createdAt: now,
+    updatedAt: now,
+    bookmarks: [],
+    views: [],
+    presets: [],
+  };
+  if (!demo) return web;
+  web.description =
+    "The people who make your world a little bigger. A fictional web to explore and make your own.";
+  const people: [string, string, string, string, string, string][] = [
+    [
+      "Alex",
+      "Morgan",
+      "Inner circle",
+      "#c4b5fd",
+      "A little bit of every circle. Usually bringing everyone together.",
+      "creative|weekend plans",
+    ],
+    [
+      "Jamie",
+      "Chen",
+      "Inner circle",
+      "#c4b5fd",
+      "The first call for a good conversation and a spontaneous adventure.",
+      "music|coffee",
+    ],
+    [
+      "Sam",
+      "Rivera",
+      "Inner circle",
+      "#f9a8d4",
+      "Always has a new book recommendation.",
+      "books|creative",
+    ],
+    [
+      "Jordan",
+      "Lee",
+      "Inner circle",
+      "#c4b5fd",
+      "A long-time friend with a love of hiking.",
+      "outdoors",
+    ],
+    [
+      "Taylor",
+      "Brooks",
+      "Inner circle",
+      "#c4b5fd",
+      "The best person to get lost in a new city with.",
+      "travel",
+    ],
+    [
+      "Riley",
+      "Park",
+      "Inner circle",
+      "#f9a8d4",
+      "Good playlists, good company.",
+      "music",
+    ],
+    [
+      "Morgan",
+      "Reed",
+      "Work friends",
+      "#64cbb3",
+      "Designs thoughtful things. Makes excellent coffee.",
+      "design|coffee",
+    ],
+    [
+      "Casey",
+      "Wells",
+      "Work friends",
+      "#64cbb3",
+      "A collaborator with a curious mind.",
+      "design|technology",
+    ],
+    [
+      "Drew",
+      "Foster",
+      "Work friends",
+      "#64cbb3",
+      "Turns complicated problems into simple ideas.",
+      "technology",
+    ],
+    [
+      "Avery",
+      "Scott",
+      "Work friends",
+      "#64cbb3",
+      "Makes the team feel like a team.",
+      "creative",
+    ],
+    [
+      "Quinn",
+      "Patel",
+      "Work friends",
+      "#64cbb3",
+      "Always exploring something new.",
+      "photography",
+    ],
+    [
+      "Cameron",
+      "Blake",
+      "Work friends",
+      "#64cbb3",
+      "Our go-to for a fresh perspective.",
+      "design",
+    ],
+    [
+      "Emma",
+      "Morgan",
+      "Family",
+      "#fbbf77",
+      "Sunday dinner enthusiast and keeper of family stories.",
+      "cooking",
+    ],
+    [
+      "Noah",
+      "Morgan",
+      "Family",
+      "#fbbf77",
+      "A regular on weekend bike rides.",
+      "outdoors",
+    ],
+    [
+      "Olivia",
+      "Morgan",
+      "Family",
+      "#fbbf77",
+      "The most thoughtful person at the table.",
+      "art",
+    ],
+    [
+      "Ethan",
+      "James",
+      "Family",
+      "#fbbf77",
+      "Knows a little about almost everything.",
+      "books",
+    ],
+    [
+      "Mia",
+      "James",
+      "Family",
+      "#fbbf77",
+      "Brings everyone together for the holidays.",
+      "cooking",
+    ],
+    [
+      "Sophie",
+      "Turner",
+      "University",
+      "#7db6f7",
+      "Study sessions turned into lasting friendship.",
+      "books|travel",
+    ],
+    [
+      "Lucas",
+      "Wright",
+      "University",
+      "#7db6f7",
+      "Still planning the next reunion.",
+      "travel",
+    ],
+    [
+      "Isla",
+      "Green",
+      "University",
+      "#7db6f7",
+      "From the first day of class to today.",
+      "art",
+    ],
+    [
+      "Leo",
+      "Carter",
+      "University",
+      "#7db6f7",
+      "A friend from the campus photography club.",
+      "photography",
+    ],
+    [
+      "Amelia",
+      "Stone",
+      "University",
+      "#7db6f7",
+      "Makes every catch-up feel like no time has passed.",
+      "coffee",
+    ],
+    [
+      "Finn",
+      "Harper",
+      "Community",
+      "#e1b4f4",
+      "A familiar face at the neighborhood garden.",
+      "outdoors",
+    ],
+    [
+      "Zoe",
+      "Adams",
+      "Community",
+      "#e1b4f4",
+      "Met at a local creative workshop.",
+      "creative|art",
+    ],
+    [
+      "Aria",
+      "Bennett",
+      "Community",
+      "#e1b4f4",
+      "Always up for a new neighborhood project.",
+      "cooking",
+    ],
+    [
+      "Oscar",
+      "Hill",
+      "Community",
+      "#e1b4f4",
+      "Saturday running club regular.",
+      "outdoors",
+    ],
+    [
+      "Luna",
+      "Hayes",
+      "Community",
+      "#e1b4f4",
+      "A fellow music lover from open mic night.",
+      "music",
+    ],
+    [
+      "Kai",
+      "Ellis",
+      "Community",
+      "#e1b4f4",
+      "A new friend from the local climbing gym.",
+      "outdoors",
+    ],
+  ];
+  const centers: Record<string, [number, number, number]> = {
+    "Inner circle": [0, 5, 0],
+    "Work friends": [110, 45, -35],
+    Family: [-95, 52, -20],
+    University: [-62, -80, 20],
+    Community: [95, -75, 35],
+  };
+  const ids: string[] = [];
+  people.forEach(
+    ([firstName, lastName, group, color, description, tags], i) => {
+      const [cx, cy, cz] = centers[group];
+      const angle = i * 2.399963;
+      const radius = i === 0 ? 0 : 28 + (i % 3) * 14;
+      const p = makePerson(firstName, {
+        lastName,
+        groups: [group],
+        color,
+        description,
+        tags: tags.split("|"),
+        position: {
+          x: cx + Math.cos(angle) * radius,
+          y: cy + Math.sin(angle) * radius,
+          z: cz + Math.sin(i * 1.7) * 24,
+        },
+        favorite: i < 4,
+      });
+      web.people[p.id] = p;
+      ids.push(p.id);
+    },
+  );
+  const pairs: [number, number, string][] = [
+    [0, 1, "best-friend"],
+    [0, 2, "close-friend"],
+    [0, 3, "friend"],
+    [0, 4, "friend"],
+    [0, 5, "close-friend"],
+    [1, 2, "friend"],
+    [2, 3, "friend"],
+    [3, 4, "friend"],
+    [4, 5, "friend"],
+    [1, 5, "friend"],
+    [0, 6, "coworker"],
+    [0, 7, "coworker"],
+    [6, 7, "coworker"],
+    [6, 8, "coworker"],
+    [7, 9, "coworker"],
+    [8, 9, "coworker"],
+    [9, 10, "coworker"],
+    [10, 11, "coworker"],
+    [6, 11, "coworker"],
+    [7, 11, "coworker"],
+    [0, 12, "family"],
+    [0, 13, "sibling"],
+    [0, 14, "sibling"],
+    [12, 13, "family"],
+    [12, 14, "family"],
+    [12, 15, "family"],
+    [15, 16, "partner"],
+    [13, 14, "sibling"],
+    [14, 16, "family"],
+    [0, 17, "classmate"],
+    [0, 18, "classmate"],
+    [17, 18, "friend"],
+    [17, 19, "classmate"],
+    [18, 20, "classmate"],
+    [19, 20, "friend"],
+    [20, 21, "classmate"],
+    [17, 21, "friend"],
+    [1, 17, "friend"],
+    [0, 22, "friend"],
+    [0, 23, "friend"],
+    [22, 23, "friend"],
+    [22, 24, "friend"],
+    [24, 25, "friend"],
+    [25, 26, "acquaintance"],
+    [26, 27, "friend"],
+    [23, 27, "friend"],
+    [3, 25, "friend"],
+    [5, 26, "friend"],
+    [10, 23, "friend"],
+    [4, 18, "friend"],
+    [2, 19, "friend"],
+    [11, 27, "acquaintance"],
+  ];
+  pairs.forEach(([a, b, type], i) => {
+    const l: Connection = {
+      id: crypto.randomUUID(),
+      source: ids[a],
+      target: ids[b],
+      type,
+      weight: 1,
+      directed: false,
+      custom: {},
+      createdAt: now,
+      updatedAt: now,
+      ...(i === 0
+        ? {
+            notes: "Met at a neighborhood café. Friends ever since.",
+            startDate: "2019-05-18",
+          }
+        : {}),
+    };
+    web.links[l.id] = l;
+  });
+  web.settings.groupColors = {
+    "Inner circle": "#c4b5fd",
+    "Work friends": "#64cbb3",
+    Family: "#fbbf77",
+    University: "#7db6f7",
+    Community: "#e1b4f4",
+  };
+  return web;
+}

@@ -1,0 +1,14 @@
+node_modules/
+dist/
+coverage/
+*.local
+*.tsbuildinfo
+.DS_Store
+.env
+.env.*
+!.env.example
+playwright-report/
+test-results/
+
+# Local Site hosting identity; GitHub Pages does not use it.
+.openai/hosting.json
